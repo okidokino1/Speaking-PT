@@ -1,5 +1,8 @@
-import { features } from "./env";
+import { env, features } from "./env";
 import { getSupabaseAdmin } from "./supabase/server";
+
+// 관리자 DB 작업 가능 여부 (service_role 유효)
+const hasAdmin = () => features.supabase && !!env.supabaseServiceKey;
 
 export interface MemberRow {
   id: string;
@@ -13,7 +16,7 @@ export interface MemberRow {
 
 // 전체 회원 목록 (관리자용). Supabase 미설정 시 빈 배열.
 export async function listMembers(): Promise<MemberRow[]> {
-  if (!features.supabase) return [];
+  if (!hasAdmin()) return [];
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from("profiles")
@@ -39,7 +42,7 @@ export interface MemberPatch {
 }
 
 export async function updateMember(id: string, patch: MemberPatch): Promise<boolean> {
-  if (!features.supabase) return false;
+  if (!hasAdmin()) return false;
   const supabase = getSupabaseAdmin();
   const update: Record<string, unknown> = {};
   if (patch.name !== undefined) update.name = patch.name;
