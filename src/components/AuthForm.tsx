@@ -26,14 +26,15 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
       if (isSignup) {
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
-        if (data.user) {
-          await supabase.from("profiles").upsert({
-            id: data.user.id,
-            email,
-            name: name || email.split("@")[0],
-            plan: "free",
-            credits: 3,
-          });
+        // 이메일 인증이 켜져 있으면 세션이 없다 → 안내 후 종료
+        if (!data.session) {
+          setError("가입 확인 메일을 보냈습니다. 메일에서 인증한 뒤 로그인해 주세요.");
+          setLoading(false);
+          return;
+        }
+        // 프로필은 DB 트리거가 자동 생성. 이름만 입력됐으면 반영
+        if (name && data.user) {
+          await supabase.from("profiles").update({ name }).eq("id", data.user.id);
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
