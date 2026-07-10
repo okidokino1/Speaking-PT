@@ -83,7 +83,7 @@ export default function Home() {
           </div>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-slate-500">
             <span className="inline-flex items-center gap-1.5">
-              <CheckCircle2 className="h-4 w-4 text-emerald-500" /> 무료 체험 3회
+              <CheckCircle2 className="h-4 w-4 text-emerald-500" /> 가입 시 1세트 무료
             </span>
             <span className="inline-flex items-center gap-1.5">
               <Timer className="h-4 w-4 text-emerald-500" /> 실전 동일 타이머
@@ -158,7 +158,7 @@ export default function Home() {
         <div className="rounded-3xl bg-gradient-to-br from-brand-600 to-brand-700 px-8 py-14 text-center text-white">
           <h2 className="text-3xl font-bold">오늘 첫 모의고사를 응시해보세요</h2>
           <p className="mx-auto mt-3 max-w-xl text-brand-100">
-            회원가입 즉시 무료로 3회 응시할 수 있습니다. 신용카드가 필요 없습니다.
+            회원가입 시 1세트를 무료로 응시할 수 있습니다. 신용카드가 필요 없습니다.
           </p>
           <Link
             href="/signup"

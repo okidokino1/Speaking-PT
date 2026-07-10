@@ -24,7 +24,7 @@ export async function getSessionUser(): Promise<Profile | null> {
       email: user.email || "",
       name: profile?.name || user.email?.split("@")[0] || "학습자",
       plan: admin ? "pro" : profile?.plan || "free",
-      credits: profile?.credits ?? 3,
+      credits: profile?.credits ?? 1,
       targetScore: profile?.target_score || undefined,
       isAdmin: admin,
     };
@@ -41,7 +41,7 @@ export async function getSessionUser(): Promise<Profile | null> {
       email: parsed.email,
       name: parsed.name,
       plan: admin ? "pro" : parsed.plan || "free",
-      credits: parsed.credits ?? 3,
+      credits: parsed.credits ?? 1,
       targetScore: parsed.targetScore,
       isAdmin: admin,
     };

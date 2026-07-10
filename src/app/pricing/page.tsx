@@ -7,8 +7,13 @@ import { CheckoutButton } from "@/components/CheckoutButton";
 
 export const dynamic = "force-dynamic";
 
-export default async function PricingPage() {
+export default async function PricingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ reason?: string }>;
+}) {
   const user = await getSessionUser();
+  const { reason } = await searchParams;
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
@@ -28,6 +33,11 @@ export default async function PricingPage() {
 
       <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <div className="text-center">
+          {reason === "out-of-credits" && (
+            <div className="mx-auto mb-6 max-w-lg rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              무료 1세트를 모두 사용하셨습니다. 계속 응시하려면 이용권을 구매하거나 구독해 주세요.
+            </div>
+          )}
           <h1 className="text-3xl font-bold text-slate-900">요금제</h1>
           <p className="mt-2 text-slate-500">필요한 만큼만. 무료로 시작하고 언제든 업그레이드하세요.</p>
           {!features.portone && (

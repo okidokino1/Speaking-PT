@@ -7,7 +7,7 @@ create table if not exists public.profiles (
   email text,
   name text,
   plan text not null default 'free',       -- 'free' | 'pro'
-  credits integer not null default 3,
+  credits integer not null default 1,      -- 회원가입 시 무료 1세트
   target_score text,
   created_at timestamptz not null default now()
 );

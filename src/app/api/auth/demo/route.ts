@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     email,
     name,
     plan: "free",
-    credits: 3,
+    credits: 1, // 회원가입 시 무료 1세트
   };
 
   const store = await cookies();

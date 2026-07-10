@@ -16,8 +16,8 @@ export const PLANS: Plan[] = [
     price: 0,
     period: "가입 시",
     kind: "free",
-    credits: 3,
-    features: ["모의고사 3회 응시", "5개 영역 채점", "기본 피드백", "대시보드 이용"],
+    credits: 1,
+    features: ["모의고사 1세트 무료 응시", "5개 영역 채점", "기본 피드백", "대시보드 이용"],
   },
   {
     id: "credit10",
