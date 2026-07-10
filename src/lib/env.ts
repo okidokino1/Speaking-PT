@@ -1,15 +1,18 @@
 // 어떤 외부 서비스가 설정되어 있는지 감지한다.
 // 키가 없으면 앱은 "데모 모드"로 완전히 동작하고, 키가 채워지면 실제 서비스로 전환된다.
 
+// 값에 섞일 수 있는 앞뒤 공백/개행 제거 (붙여넣기 사고 방지)
+const clean = (v?: string) => (v || "").trim();
+
 export const env = {
-  supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
-  supabaseServiceKey: process.env.SUPABASE_SERVICE_ROLE_KEY || "",
-  openaiKey: process.env.OPENAI_API_KEY || "",
-  anthropicKey: process.env.ANTHROPIC_API_KEY || "",
-  portoneStoreId: process.env.NEXT_PUBLIC_PORTONE_STORE_ID || "",
-  portoneChannelKey: process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY || "",
-  portoneApiSecret: process.env.PORTONE_API_SECRET || "",
+  supabaseUrl: clean(process.env.NEXT_PUBLIC_SUPABASE_URL),
+  supabaseAnonKey: clean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
+  supabaseServiceKey: clean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+  openaiKey: clean(process.env.OPENAI_API_KEY),
+  anthropicKey: clean(process.env.ANTHROPIC_API_KEY),
+  portoneStoreId: clean(process.env.NEXT_PUBLIC_PORTONE_STORE_ID),
+  portoneChannelKey: clean(process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY),
+  portoneApiSecret: clean(process.env.PORTONE_API_SECRET),
   claudeModel: process.env.CLAUDE_MODEL || "claude-sonnet-5",
   // 관리자 이메일 (기본값 + ADMIN_EMAILS 환경변수로 추가 지정 가능, 콤마 구분)
   adminEmails: [
