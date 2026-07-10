@@ -73,5 +73,7 @@ export async function POST(req: Request) {
     }
   }
 
-  return NextResponse.json({ attemptId: record.id });
+  // 서버리스(무DB 데모) 환경에서는 인메모리 저장이 인스턴스 간 공유되지 않으므로,
+  // 전체 기록을 함께 반환하여 클라이언트가 결과 페이지에서 폴백 렌더링할 수 있게 한다.
+  return NextResponse.json({ attemptId: record.id, record });
 }

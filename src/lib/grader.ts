@@ -88,7 +88,6 @@ JSON 스키마:
   const resp = await client.messages.create({
     model: env.claudeModel,
     max_tokens: 4000,
-    temperature: 0.3,
     system,
     messages: [{ role: "user", content: user }],
   });

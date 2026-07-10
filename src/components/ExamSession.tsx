@@ -9,6 +9,7 @@ import {
   Loader2,
   ChevronRight,
   AlertCircle,
+  Volume2,
 } from "lucide-react";
 import type { ExamType } from "@/lib/exams";
 import type { Question } from "@/lib/types";
@@ -40,6 +41,7 @@ export function ExamSession({
   const [transcript, setTranscript] = useState("");
   const [error, setError] = useState("");
   const [micDenied, setMicDenied] = useState(false);
+  const [reading, setReading] = useState(false); // 시험관이 문제를 음성으로 읽는 중
 
   const answersRef = useRef<CollectedAnswer[]>([]);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -51,20 +53,70 @@ export function ExamSession({
 
   const q = questions[qIndex];
 
-  // ---- 타이머 ----
+  // ---- 시험관 음성 출제 (TTS) ----
+  const speak = useCallback((text: string, onEnd?: () => void) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      onEnd?.();
+    };
+    const synth = typeof window !== "undefined" ? window.speechSynthesis : undefined;
+    if (!synth) {
+      finish();
+      return;
+    }
+    try {
+      synth.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "en-US";
+      u.rate = 0.96;
+      const voices = synth.getVoices();
+      const en =
+        voices.find((v) => /en[-_]US/i.test(v.lang) && /female|Samantha|Google US|Jenny|Aria|Zira/i.test(v.name)) ||
+        voices.find((v) => /en[-_]US/i.test(v.lang)) ||
+        voices.find((v) => /^en/i.test(v.lang));
+      if (en) u.voice = en;
+      u.onend = finish;
+      u.onerror = finish;
+      synth.speak(u);
+      // 워치독: onend가 발생하지 않는 브라우저에서도 반드시 진행되도록
+      const est = Math.min(20000, Math.max(4000, text.split(/\s+/).length * 450 + 2500));
+      setTimeout(finish, est);
+    } catch {
+      finish();
+    }
+  }, []);
+
+  const stopSpeaking = useCallback(() => {
+    try {
+      window.speechSynthesis?.cancel();
+    } catch {}
+  }, []);
+
+  // ---- 타이머 (문제 낭독 중에는 멈춤) ----
   useEffect(() => {
     if (phase !== "prep" && phase !== "answer") return;
-    if (secondsLeft <= 0) return;
+    if (reading || secondsLeft <= 0) return;
     const id = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
     return () => clearTimeout(id);
-  }, [phase, secondsLeft]);
+  }, [phase, secondsLeft, reading]);
 
   useEffect(() => {
-    if (secondsLeft > 0) return;
+    if (reading || secondsLeft > 0) return;
     if (phase === "prep") beginAnswer();
     else if (phase === "answer") finishAnswer();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [secondsLeft, phase]);
+  }, [secondsLeft, phase, reading]);
+
+  // 언마운트 시 음성 정리
+  useEffect(() => {
+    return () => {
+      try {
+        window.speechSynthesis?.cancel();
+      } catch {}
+    };
+  }, []);
 
   // ---- 녹음 ----
   const startRecording = useCallback(async () => {
@@ -139,17 +191,26 @@ export function ExamSession({
     setQIndex(i);
     setTranscript("");
     const question = questions[i];
+    // 시험관이 문제를 음성으로 읽어준다. 읽는 동안 타이머는 멈춘다.
+    setReading(true);
     if (question.prepSec > 0) {
       setPhase("prep");
       setSecondsLeft(question.prepSec);
+      speak(question.prompt, () => setReading(false));
     } else {
       setPhase("answer");
       setSecondsLeft(question.answerSec);
-      startRecording();
+      // 준비 시간이 없는 문항: 낭독이 끝난 뒤 녹음 시작
+      speak(question.prompt, () => {
+        setReading(false);
+        startRecording();
+      });
     }
   }
 
   function beginAnswer() {
+    stopSpeaking();
+    setReading(false);
     setPhase("answer");
     setSecondsLeft(q.answerSec);
     startRecording();
@@ -158,6 +219,7 @@ export function ExamSession({
   async function finishAnswer() {
     if (finishingRef.current) return;
     finishingRef.current = true;
+    stopSpeaking();
     setPhase("processing");
 
     const durationSec = Math.max(1, Math.round((Date.now() - startTimeRef.current) / 1000));
@@ -208,6 +270,12 @@ export function ExamSession({
       }
       if (!res.ok) throw new Error("채점 요청 실패");
       const data = await res.json();
+      // 서버리스 폴백: 결과 기록을 클라이언트에 보관 (결과 페이지가 이를 사용)
+      try {
+        if (data.record) {
+          sessionStorage.setItem(`sp:attempt:${data.attemptId}`, JSON.stringify(data.record));
+        }
+      } catch {}
       router.push(`/result/${data.attemptId}`);
     } catch {
       setError("채점 중 오류가 발생했습니다. 다시 시도해 주세요.");
@@ -280,10 +348,20 @@ export function ExamSession({
         <div className="flex items-center justify-between">
           <span
             className={`chip ${
-              phase === "prep" ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700"
+              reading
+                ? "bg-brand-100 text-brand-700"
+                : phase === "prep"
+                ? "bg-amber-100 text-amber-700"
+                : "bg-rose-100 text-rose-700"
             }`}
           >
-            {phase === "prep" ? "준비 시간" : (
+            {reading ? (
+              <span className="flex items-center gap-1">
+                <Volume2 className="h-3.5 w-3.5 animate-pulse" /> 시험관이 문제를 읽는 중…
+              </span>
+            ) : phase === "prep" ? (
+              "준비 시간"
+            ) : (
               <span className="flex items-center gap-1">
                 <span className="h-2 w-2 animate-pulse rounded-full bg-rose-500" /> 녹음 중
               </span>
@@ -297,7 +375,18 @@ export function ExamSession({
 
         {/* question */}
         <div className="mt-5">
-          <p className="text-lg font-semibold leading-relaxed text-slate-900">{q.prompt}</p>
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-lg font-semibold leading-relaxed text-slate-900">{q.prompt}</p>
+            <button
+              type="button"
+              onClick={() => speak(q.prompt)}
+              title="문제 다시 듣기"
+              className="btn-outline shrink-0 px-3 py-2"
+            >
+              <Volume2 className="h-4 w-4" />
+              <span className="hidden sm:inline">다시 듣기</span>
+            </button>
+          </div>
           {q.promptKo && <p className="mt-1 text-sm text-slate-500">{q.promptKo}</p>}
 
           {q.passage && (
