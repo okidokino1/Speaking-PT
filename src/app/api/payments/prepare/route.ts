@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { getPlan } from "@/lib/plans";
-import { createOrder } from "@/lib/payments";
+import { newOrderId, createOrderRow } from "@/lib/payments";
 
 export async function POST(req: Request) {
   const user = await getSessionUser();
@@ -13,6 +13,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "잘못된 요금제입니다." }, { status: 400 });
   }
 
-  const order = createOrder(user.id, plan);
-  return NextResponse.json({ orderId: order.orderId, amount: order.amount });
+  const orderId = newOrderId(plan);
+  await createOrderRow(user.id, plan, orderId); // 서버리스 안전망: DB에 'ready' 주문 기록
+  return NextResponse.json({ orderId, amount: plan.price, planId: plan.id });
 }

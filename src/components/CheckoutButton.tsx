@@ -50,7 +50,7 @@ export function CheckoutButton({ plan }: { plan: Plan }) {
         const done = await fetch("/api/payments/complete", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ orderId: prep.orderId, paymentId: resp?.paymentId }),
+          body: JSON.stringify({ orderId: prep.orderId, paymentId: resp?.paymentId, planId: plan.id }),
         }).then((r) => r.json());
         if (!done.ok) throw new Error(done.error || "결제 검증 실패");
       } else {
@@ -58,7 +58,7 @@ export function CheckoutButton({ plan }: { plan: Plan }) {
         const done = await fetch("/api/payments/complete", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ orderId: prep.orderId, demo: true }),
+          body: JSON.stringify({ orderId: prep.orderId, planId: plan.id, demo: true }),
         }).then((r) => r.json());
         if (!done.ok) throw new Error(done.error || "처리 실패");
       }

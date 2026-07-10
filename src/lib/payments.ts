@@ -1,49 +1,72 @@
 import { randomUUID } from "crypto";
-import type { Plan } from "./plans";
+import { features } from "./env";
+import { getPlan, type Plan } from "./plans";
+import { getSupabaseAdmin } from "./supabase/server";
 import type { Profile } from "./types";
 
-export interface Order {
-  orderId: string;
-  userId: string;
-  planId: string;
-  amount: number;
-  status: "ready" | "paid" | "failed";
-  createdAt: number;
+// 주문 ID에 planId를 인코딩 → 서버리스에서 별도 조회 없이도 플랜/금액 검증 가능.
+// 형식: order_<planId>_<uuid>
+export function newOrderId(plan: Plan): string {
+  return `order_${plan.id}_${randomUUID()}`;
 }
 
-const g = globalThis as unknown as { __orders?: Map<string, Order> };
-if (!g.__orders) g.__orders = new Map();
-const orders = g.__orders;
+export function planIdFromOrder(orderId: string): string {
+  return orderId.split("_")[1] || "";
+}
 
-export function createOrder(userId: string, plan: Plan): Order {
-  const order: Order = {
-    orderId: "order_" + randomUUID(),
-    userId,
-    planId: plan.id,
+// 데모/쿠키 경로용 혜택 계산
+export function applyBenefits(user: Profile, plan: Plan): Profile {
+  if (plan.kind === "subscription") return { ...user, plan: "pro" };
+  if (plan.kind === "credit") return { ...user, credits: (user.credits ?? 0) + plan.credits };
+  return user;
+}
+
+// 결제 준비: DB에 'ready' 주문 기록 (Supabase 사용 시)
+export async function createOrderRow(userId: string, plan: Plan, orderId: string) {
+  if (!features.supabase) return;
+  const sb = getSupabaseAdmin();
+  await sb.from("payments").insert({
+    user_id: userId,
+    order_id: orderId,
     amount: plan.price,
     status: "ready",
-    createdAt: Date.now(),
-  };
-  orders.set(order.orderId, order);
-  return order;
+    provider: "portone",
+  });
 }
 
-export function getOrder(orderId: string): Order | undefined {
-  return orders.get(orderId);
-}
+// 결제 확정(멱등): 이미 paid면 무시, 아니면 혜택 부여 후 paid 처리.
+// complete 라우트와 웹훅 양쪽에서 호출되어도 1회만 반영된다.
+export async function settleOrder(
+  orderId: string,
+  provider: string
+): Promise<{ ok: boolean; already?: boolean }> {
+  if (!features.supabase) return { ok: false };
+  const sb = getSupabaseAdmin();
+  const { data: row } = await sb
+    .from("payments")
+    .select("user_id, amount, status")
+    .eq("order_id", orderId)
+    .single();
+  if (!row) return { ok: false };
+  if (row.status === "paid") return { ok: true, already: true };
 
-export function markOrderPaid(orderId: string) {
-  const o = orders.get(orderId);
-  if (o) o.status = "paid";
-}
+  const plan = getPlan(planIdFromOrder(orderId));
+  if (!plan) return { ok: false };
 
-// 결제 성공 시 사용자 혜택 적용 (Profile 갱신값 반환)
-export function applyBenefits(user: Profile, plan: Plan): Profile {
+  const { data: prof } = await sb
+    .from("profiles")
+    .select("credits")
+    .eq("id", row.user_id)
+    .single();
+
   if (plan.kind === "subscription") {
-    return { ...user, plan: "pro" };
+    await sb.from("profiles").update({ plan: "pro" }).eq("id", row.user_id);
+  } else if (plan.kind === "credit") {
+    await sb
+      .from("profiles")
+      .update({ credits: (prof?.credits ?? 0) + plan.credits })
+      .eq("id", row.user_id);
   }
-  if (plan.kind === "credit") {
-    return { ...user, credits: (user.credits ?? 0) + plan.credits };
-  }
-  return user;
+  await sb.from("payments").update({ status: "paid", provider }).eq("order_id", orderId);
+  return { ok: true };
 }
