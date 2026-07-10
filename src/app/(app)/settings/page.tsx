@@ -33,16 +33,19 @@ export default async function SettingsPage() {
             <dd className="text-slate-900">{user.email}</dd>
           </div>
           <div>
-            <dt className="text-sm text-slate-500">요금제</dt>
-            <dd>
+            <dt className="text-sm text-slate-500">요금제 / 권한</dt>
+            <dd className="flex items-center gap-1.5">
               <span className={`chip ${user.plan === "pro" ? "bg-brand-50 text-brand-700" : "bg-slate-100 text-slate-600"}`}>
                 {user.plan === "pro" ? "Pro" : "Free"}
               </span>
+              {user.isAdmin && <span className="chip bg-brand-600 text-white">관리자</span>}
             </dd>
           </div>
           <div>
             <dt className="text-sm text-slate-500">남은 이용권</dt>
-            <dd className="text-slate-900">{user.plan === "pro" ? "무제한" : `${user.credits}회`}</dd>
+            <dd className="text-slate-900">
+              {user.isAdmin ? "무제한 (관리자)" : user.plan === "pro" ? "무제한" : `${user.credits}회`}
+            </dd>
           </div>
         </dl>
       </div>

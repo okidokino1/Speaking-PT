@@ -83,7 +83,12 @@ export function Sidebar({ user }: { user: Profile }) {
             {user.name.slice(0, 1)}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-white">{user.name}</p>
+            <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-white">
+              {user.name}
+              {user.isAdmin && (
+                <span className="chip bg-brand-500 px-1.5 py-0.5 text-[10px] text-white">관리자</span>
+              )}
+            </p>
             <p className="truncate text-xs text-slate-400">{user.email}</p>
           </div>
           <form action="/api/auth/signout" method="post">

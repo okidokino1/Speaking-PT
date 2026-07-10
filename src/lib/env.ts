@@ -11,7 +11,20 @@ export const env = {
   portoneChannelKey: process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY || "",
   portoneApiSecret: process.env.PORTONE_API_SECRET || "",
   claudeModel: process.env.CLAUDE_MODEL || "claude-sonnet-5",
+  // 관리자 이메일 (기본값 + ADMIN_EMAILS 환경변수로 추가 지정 가능, 콤마 구분)
+  adminEmails: [
+    "okidokino1@gmail.com",
+    ...(process.env.ADMIN_EMAILS || "")
+      .split(",")
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean),
+  ],
 };
+
+export function isAdminEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return env.adminEmails.includes(email.trim().toLowerCase());
+}
 
 export const features = {
   get supabase() {

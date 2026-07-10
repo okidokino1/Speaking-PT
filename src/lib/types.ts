@@ -90,4 +90,5 @@ export interface Profile {
   plan: "free" | "pro";
   credits: number;
   targetScore?: string;
+  isAdmin?: boolean;
 }
