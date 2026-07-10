@@ -1,12 +1,22 @@
 // 어떤 외부 서비스가 설정되어 있는지 감지한다.
 // 키가 없으면 앱은 "데모 모드"로 완전히 동작하고, 키가 채워지면 실제 서비스로 전환된다.
 
-// 값에 섞일 수 있는 앞뒤 공백/개행 제거 (붙여넣기 사고 방지)
-const clean = (v?: string) => (v || "").trim();
+// 앞뒤 공백 제거 + 출력가능 ASCII만 허용.
+// (Vercel Sensitive 마스킹 '•' 같은 비-ASCII 문자가 값에 섞이면 무효 처리하여 폴백 사용)
+const clean = (v?: string) => {
+  const s = (v || "").trim();
+  return /[^\x20-\x7E]/.test(s) ? "" : s;
+};
+
+// 공개값(URL/anon key)은 손상 대비 하드코딩 폴백.
+// Supabase anon 키는 설계상 공개값(클라이언트 번들에 항상 노출)이며 보안은 RLS로 보호되므로 안전.
+const SUPABASE_URL_FALLBACK = "https://fzaxzswcwydsfxmwqkkm.supabase.co";
+const SUPABASE_ANON_FALLBACK =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ6YXh6c3djd3lkc2Z4bXdxa2ttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2NzA1NzgsImV4cCI6MjA5OTI0NjU3OH0.Q7R5FfZmadx9SEQDoQZwgJO_FzKFb7muOFtwNqw4Co0";
 
 export const env = {
-  supabaseUrl: clean(process.env.NEXT_PUBLIC_SUPABASE_URL),
-  supabaseAnonKey: clean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
+  supabaseUrl: clean(process.env.NEXT_PUBLIC_SUPABASE_URL) || SUPABASE_URL_FALLBACK,
+  supabaseAnonKey: clean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) || SUPABASE_ANON_FALLBACK,
   supabaseServiceKey: clean(process.env.SUPABASE_SERVICE_ROLE_KEY),
   openaiKey: clean(process.env.OPENAI_API_KEY),
   anthropicKey: clean(process.env.ANTHROPIC_API_KEY),

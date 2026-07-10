@@ -1,10 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { env } from "@/lib/env";
 
 // Supabase 세션 쿠키 갱신 (설정된 경우에만 동작)
 export async function middleware(request: NextRequest) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+  const url = env.supabaseUrl;
+  const key = env.supabaseAnonKey;
   if (!url || !key) return NextResponse.next();
 
   let response = NextResponse.next({ request });
