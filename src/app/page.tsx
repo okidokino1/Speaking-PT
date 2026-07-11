@@ -32,7 +32,7 @@ export default function Home() {
             <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-600 text-white">
               <Mic className="h-5 w-5" />
             </span>
-            <span className="font-bold text-slate-900">AI Speaking PT</span>
+            <span className="font-bold text-slate-900">Speaking PT</span>
           </Link>
           <nav className="flex items-center gap-2">
             <Link href="/pricing" className="btn-ghost hidden sm:inline-flex">
@@ -53,7 +53,7 @@ export default function Home() {
         <div className="absolute inset-0 -z-10 bg-gradient-to-b from-brand-50 to-transparent" />
         <div className="mx-auto max-w-6xl px-4 py-20 text-center sm:px-6">
           <span className="chip bg-brand-100 text-brand-700">
-            <Bot className="h-3.5 w-3.5" /> AI 자동 채점 · 실시간 피드백
+            <Bot className="h-3.5 w-3.5" /> 영어스피킹 시험 실시간 채점 · 실시간 피드백
           </span>
           <h1 className="mx-auto mt-5 max-w-3xl text-4xl font-bold leading-tight text-slate-900 sm:text-5xl">
             영어 스피킹 시험,
