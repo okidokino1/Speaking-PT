@@ -23,7 +23,7 @@ export default async function PricingPage({
             <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-600 text-white">
               <Mic className="h-5 w-5" />
             </span>
-            <span className="font-bold text-slate-900">AI Speaking PT</span>
+            <span className="font-bold text-slate-900">Speaking PT</span>
           </Link>
           <Link href={user ? "/dashboard" : "/"} className="inline-flex items-center gap-1.5 text-sm text-slate-500">
             <ArrowLeft className="h-4 w-4" /> {user ? "대시보드" : "홈"}

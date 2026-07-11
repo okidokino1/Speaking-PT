@@ -39,7 +39,7 @@ export function Sidebar({ user }: { user: Profile }) {
             <Mic className="h-5 w-5" />
           </span>
           <span className="leading-tight">
-            <span className="block text-base font-bold text-white">AI Speaking</span>
+            <span className="block text-base font-bold text-white">Speaking PT</span>
             <span className="block text-[11px] text-slate-400">자동채점 플랫폼</span>
           </span>
         </Link>

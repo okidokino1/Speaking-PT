@@ -146,7 +146,7 @@ export default function Home() {
 
       <footer className="border-t border-slate-200 bg-white py-8">
         <div className="mx-auto max-w-6xl px-4 text-center text-sm text-slate-400 sm:px-6">
-          © 2026 AI Speaking PT · (주)비지리츠 · 영어 스피킹 자동채점 학습 플랫폼
+          © 2026 Speaking PT · (주)비지리츠 · 영어 스피킹 자동채점 학습 플랫폼
         </div>
       </footer>
     </div>

@@ -58,7 +58,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
           {isSignup ? "회원가입" : "다시 오신 걸 환영합니다"}
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          AI Speaking PT · 영어 스피킹 자동채점 플랫폼
+          Speaking PT · 영어 스피킹 자동채점 플랫폼
         </p>
       </div>
 

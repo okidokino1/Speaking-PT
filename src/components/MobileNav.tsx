@@ -24,7 +24,7 @@ export function MobileNav({ user }: { user: Profile }) {
           <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-600 text-white">
             <Mic className="h-4 w-4" />
           </span>
-          <span className="font-bold text-slate-900">AI Speaking</span>
+          <span className="font-bold text-slate-900">Speaking PT</span>
         </Link>
         <button onClick={() => setOpen((v) => !v)} className="text-slate-700">
           {open ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
