@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { features } from "@/lib/env";
-import { generateCode, isValidKoreanMobile, normalizePhone, sendSms } from "@/lib/sms";
+import { generateCode, isValidKoreanMobile, normalizePhone, sendVerifyCode } from "@/lib/sms";
 
 export const runtime = "nodejs";
 
@@ -25,13 +25,13 @@ export async function POST(req: Request) {
     maxAge: 200,
   });
 
-  const text = `[Speaking PT] 인증번호 [${code}]를 입력해 주세요.`;
-  const sent = await sendSms(p, text);
+  const mode = await sendVerifyCode(p, code); // kakao > sms > test
 
-  // 실제 SMS 발송 시엔 코드를 반환하지 않음. 테스트 모드(미설정)에서만 화면 표시용으로 반환.
+  // 실제 발송(kakao/sms) 시엔 코드를 반환하지 않음. 테스트 모드에서만 화면 표시용으로 반환.
+  const configured = features.kakao || features.sms;
   return NextResponse.json({
     ok: true,
-    mode: sent ? "sms" : "test",
-    devCode: sent || features.sms ? undefined : code,
+    mode,
+    devCode: mode === "test" && !configured ? code : undefined,
   });
 }

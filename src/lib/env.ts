@@ -23,10 +23,12 @@ export const env = {
   portoneStoreId: clean(process.env.NEXT_PUBLIC_PORTONE_STORE_ID),
   portoneChannelKey: clean(process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY),
   portoneApiSecret: clean(process.env.PORTONE_API_SECRET),
-  // SMS 문자 인증 (Solapi/쿨SMS) — 없으면 테스트 모드(코드 화면 표시)
+  // 인증 발송 (Solapi/쿨SMS) — 카카오 알림톡 우선, SMS 대체. 없으면 테스트 모드(코드 화면 표시)
   solapiApiKey: clean(process.env.SOLAPI_API_KEY),
   solapiApiSecret: clean(process.env.SOLAPI_API_SECRET),
-  solapiSender: clean(process.env.SOLAPI_SENDER),
+  solapiSender: clean(process.env.SOLAPI_SENDER), // 발신번호(SMS 대체발송용)
+  solapiPfId: clean(process.env.SOLAPI_PFID), // 카카오 채널(플러스친구) ID
+  solapiTemplateId: clean(process.env.SOLAPI_TEMPLATE_ID), // 알림톡 템플릿 ID
   claudeModel: process.env.CLAUDE_MODEL || "claude-sonnet-5",
   // 관리자 이메일 (기본값 + ADMIN_EMAILS 환경변수로 추가 지정 가능, 콤마 구분)
   adminEmails: [
@@ -58,6 +60,9 @@ export const features = {
   },
   get sms() {
     return Boolean(env.solapiApiKey && env.solapiApiSecret && env.solapiSender);
+  },
+  get kakao() {
+    return Boolean(env.solapiApiKey && env.solapiApiSecret && env.solapiPfId && env.solapiTemplateId);
   },
 };
 

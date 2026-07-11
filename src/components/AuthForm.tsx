@@ -33,11 +33,15 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "전송 실패");
       setOtpSent(true);
-      setOtpMsg(
-        d.mode === "test"
-          ? `테스트 모드입니다. 인증번호: ${d.devCode} (SMS 키 연결 시 실제 문자로 발송)`
-          : "인증번호를 문자로 전송했습니다. 3분 안에 입력해 주세요."
-      );
+      if (d.mode === "kakao") {
+        setOtpMsg("카카오톡으로 인증번호를 전송했습니다. 3분 안에 입력해 주세요.");
+      } else if (d.mode === "sms") {
+        setOtpMsg("문자로 인증번호를 전송했습니다. 3분 안에 입력해 주세요.");
+      } else if (d.devCode) {
+        setOtpMsg(`테스트 모드입니다. 인증번호: ${d.devCode} (카카오/문자 키 연결 시 실제 발송)`);
+      } else {
+        setOtpMsg("전송에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      }
     } catch (e) {
       setOtpMsg(e instanceof Error ? e.message : "전송 중 오류");
     } finally {
