@@ -17,6 +17,13 @@ export async function POST(req: Request) {
 
   // 실 결제: PortOne 서버 검증 (결제금액이 해당 플랜 가격과 일치하는지)
   if (features.portone && !demo) {
+    if (!env.portoneApiSecret) {
+      console.error("[pay] PORTONE_API_SECRET 미설정/손상 (Vercel 값 확인 필요)");
+      return NextResponse.json(
+        { error: "결제 검증 설정 오류: API Secret이 없습니다. 관리자에게 문의하세요." },
+        { status: 500 }
+      );
+    }
     try {
       const verify = await fetch(
         `https://api.portone.io/payments/${encodeURIComponent(paymentId)}`,
@@ -24,13 +31,30 @@ export async function POST(req: Request) {
       );
       const payment = await verify.json();
       const paidAmount = payment?.amount?.total;
+      console.log(
+        "[pay] verify",
+        JSON.stringify({
+          http: verify.status,
+          status: payment?.status,
+          paidAmount,
+          expected: plan.price,
+          paymentId,
+          secretLen: env.portoneApiSecret.length,
+          msg: payment?.message || payment?.type,
+        })
+      );
       if (payment?.status !== "PAID" || paidAmount !== plan.price) {
         return NextResponse.json(
-          { error: "결제 검증에 실패했습니다. (금액/상태 불일치)" },
+          {
+            error: `결제 검증 실패 (status=${payment?.status ?? "?"}, amount=${
+              paidAmount ?? "?"
+            }/${plan.price})`,
+          },
           { status: 400 }
         );
       }
-    } catch {
+    } catch (e) {
+      console.error("[pay] verify 예외:", e);
       return NextResponse.json({ error: "결제 검증 중 오류가 발생했습니다." }, { status: 500 });
     }
   }
