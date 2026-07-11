@@ -60,6 +60,36 @@ export default async function MemberDetailPage({
         </div>
       </div>
 
+      {/* 가입 정보 */}
+      <div className="card p-6">
+        <h2 className="font-bold text-slate-900">가입 정보</h2>
+        <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <dt className="text-xs text-slate-500">휴대폰</dt>
+            <dd className="text-slate-800">
+              {member.phone || "-"}
+              {member.phone && member.phoneVerified && (
+                <span className="ml-1 chip bg-emerald-50 px-1.5 py-0.5 text-[10px] text-emerald-700">인증</span>
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-slate-500">생년월일</dt>
+            <dd className="text-slate-800">{member.birthdate || "-"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-slate-500">성별</dt>
+            <dd className="text-slate-800">
+              {member.gender === "male" ? "남성" : member.gender === "female" ? "여성" : member.gender === "other" ? "기타" : "-"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-slate-500">집주소</dt>
+            <dd className="text-slate-800">{member.address || "-"}</dd>
+          </div>
+        </dl>
+      </div>
+
       {/* 편집 */}
       <MemberEditor member={member} orgs={orgs.map((o) => ({ id: o.id, name: o.name }))} isPlatform={!!user.isAdmin} />
 

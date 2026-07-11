@@ -23,6 +23,10 @@ export const env = {
   portoneStoreId: clean(process.env.NEXT_PUBLIC_PORTONE_STORE_ID),
   portoneChannelKey: clean(process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY),
   portoneApiSecret: clean(process.env.PORTONE_API_SECRET),
+  // SMS 문자 인증 (Solapi/쿨SMS) — 없으면 테스트 모드(코드 화면 표시)
+  solapiApiKey: clean(process.env.SOLAPI_API_KEY),
+  solapiApiSecret: clean(process.env.SOLAPI_API_SECRET),
+  solapiSender: clean(process.env.SOLAPI_SENDER),
   claudeModel: process.env.CLAUDE_MODEL || "claude-sonnet-5",
   // 관리자 이메일 (기본값 + ADMIN_EMAILS 환경변수로 추가 지정 가능, 콤마 구분)
   adminEmails: [
@@ -51,6 +55,9 @@ export const features = {
   },
   get portone() {
     return Boolean(env.portoneStoreId && env.portoneChannelKey);
+  },
+  get sms() {
+    return Boolean(env.solapiApiKey && env.solapiApiSecret && env.solapiSender);
   },
 };
 

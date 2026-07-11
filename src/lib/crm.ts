@@ -33,6 +33,11 @@ export interface MemberRow {
   avgScore: number;
   totalSpend: number;
   lastActive: string | null;
+  phone: string | null;
+  birthdate: string | null;
+  gender: string | null;
+  address: string | null;
+  phoneVerified: boolean;
 }
 
 export interface PaymentRow {
@@ -64,7 +69,7 @@ async function loadScoped(viewer: Viewer) {
 
   let pq = sb
     .from("profiles")
-    .select("id,email,name,plan,credits,target_score,created_at,org_id,role,memo,tags,status")
+    .select("id,email,name,plan,credits,target_score,created_at,org_id,role,memo,tags,status,phone,birthdate,gender,address,phone_verified")
     .order("created_at", { ascending: false });
   if (orgScope) pq = pq.eq("org_id", orgScope);
   const { data: profiles } = await pq;
@@ -194,6 +199,11 @@ export async function listMembers(viewer: Viewer): Promise<MemberRow[]> {
       avgScore: overalls.length ? Math.round(overalls.reduce((s, v) => s + v, 0) / overalls.length) : 0,
       totalSpend: pays.reduce((s, x) => s + ((x.amount as number) || 0), 0),
       lastActive,
+      phone: (p.phone as string) || null,
+      birthdate: (p.birthdate as string) || null,
+      gender: (p.gender as string) || null,
+      address: (p.address as string) || null,
+      phoneVerified: !!p.phone_verified,
     };
   });
 }
