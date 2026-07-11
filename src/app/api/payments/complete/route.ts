@@ -18,7 +18,10 @@ export async function POST(req: Request) {
   // 실 결제: PortOne 서버 검증 (결제금액이 해당 플랜 가격과 일치하는지)
   if (features.portone && !demo) {
     if (!env.portoneApiSecret) {
-      console.error("[pay] PORTONE_API_SECRET 미설정/손상 (Vercel 값 확인 필요)");
+      const raw = process.env.PORTONE_API_SECRET || "";
+      console.error(
+        `[pay] PORTONE_API_SECRET 무효. rawLen=${raw.length} (0=미설정, >0=비ASCII손상)`
+      );
       return NextResponse.json(
         { error: "결제 검증 설정 오류: API Secret이 없습니다. 관리자에게 문의하세요." },
         { status: 500 }
