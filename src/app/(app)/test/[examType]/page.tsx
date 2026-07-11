@@ -1,11 +1,12 @@
 import { notFound, redirect } from "next/navigation";
 import { getExam, type ExamType } from "@/lib/exams";
-import { buildSession } from "@/lib/questions";
+import { generateSession } from "@/lib/questionGen";
 import { features } from "@/lib/env";
 import { getSessionUser } from "@/lib/auth";
 import { ExamSession } from "@/components/ExamSession";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 export default async function TakeExamPage({
   params,
@@ -22,7 +23,8 @@ export default async function TakeExamPage({
     redirect("/pricing?reason=out-of-credits");
   }
 
-  const questions = buildSession(examType as ExamType);
+  // 매 회차 AI가 새 문항을 출제 (반복 방지). 실패 시 시드 문항 폴백.
+  const questions = await generateSession(examType as ExamType);
 
   return (
     <ExamSession
