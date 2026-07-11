@@ -83,6 +83,8 @@ export interface AttemptRecord {
   result: ScoreResult;
 }
 
+export type Role = "member" | "org_admin" | "admin";
+
 export interface Profile {
   id: string;
   email: string;
@@ -90,5 +92,8 @@ export interface Profile {
   plan: "free" | "pro";
   credits: number;
   targetScore?: string;
-  isAdmin?: boolean;
+  isAdmin?: boolean; // 플랫폼 관리자 (전체 접근)
+  isStaff?: boolean; // 관리자 또는 기관 관리자 (CRM 접근)
+  role?: Role;
+  orgId?: string | null;
 }

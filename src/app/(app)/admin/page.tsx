@@ -1,27 +1,77 @@
 import { redirect } from "next/navigation";
+import { Users, UserCheck, TrendingUp, Wallet, ClipboardCheck, Gauge } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { features } from "@/lib/env";
-import { listMembers } from "@/lib/admin";
-import { AdminMembers } from "@/components/AdminMembers";
+import { getKpis } from "@/lib/crm";
+import { AdminNav } from "@/components/admin/AdminNav";
+import { KpiTrend } from "@/components/admin/KpiTrend";
+import { CrmNotice } from "@/components/admin/CrmNotice";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminPage() {
+export default async function AdminHomePage() {
   const user = (await getSessionUser())!;
-  if (!user.isAdmin) redirect("/dashboard");
+  if (!user.isStaff) redirect("/dashboard");
+  const isPlatform = !!user.isAdmin;
 
-  const members = await listMembers();
+  const kpis = await getKpis({ role: user.role, orgId: user.orgId, isAdmin: user.isAdmin });
+
+  const cards = [
+    { label: "총 회원", value: `${kpis.totalMembers.toLocaleString()}명`, icon: Users, tone: "brand" as const, sub: `최근 7일 +${kpis.newMembers7d}` },
+    { label: "유료 회원", value: `${kpis.paidMembers.toLocaleString()}명`, icon: UserCheck, tone: "emerald" as const, sub: `전환율 ${kpis.conversionRate}%` },
+    { label: "총 매출", value: `${kpis.totalRevenue.toLocaleString()}원`, icon: Wallet, tone: "violet" as const, sub: `최근 7일 ${kpis.revenue7d.toLocaleString()}원` },
+    { label: "총 응시", value: `${kpis.totalAttempts.toLocaleString()}회`, icon: ClipboardCheck, tone: "sky" as const, sub: "누적 모의고사" },
+    { label: "평균 점수", value: `${kpis.avgScore}점`, icon: Gauge, tone: "amber" as const, sub: "전체 응시 평균" },
+    { label: "전환율", value: `${kpis.conversionRate}%`, icon: TrendingUp, tone: "rose" as const, sub: "무료→유료" },
+  ];
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">회원 관리</h1>
-        <p className="mt-1 text-slate-500">
-          회원의 이름·요금제·이용권·목표 점수를 조회하고 수정할 수 있습니다. (관리자 전용)
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">CRM · 개요</h1>
+          <p className="mt-1 text-slate-500">
+            {isPlatform ? "전체 고객·매출 현황" : "우리 기관 회원 현황"}을 한눈에 확인합니다.
+          </p>
+        </div>
+        <AdminNav isPlatformAdmin={isPlatform} />
       </div>
 
-      <AdminMembers initialMembers={members} supabaseEnabled={features.supabase} />
+      {!features.supabase ? (
+        <CrmNotice />
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            {cards.map((c) => {
+              const tones: Record<string, string> = {
+                brand: "bg-brand-50 text-brand-600",
+                emerald: "bg-emerald-50 text-emerald-600",
+                violet: "bg-violet-50 text-violet-600",
+                sky: "bg-sky-50 text-sky-600",
+                amber: "bg-amber-50 text-amber-600",
+                rose: "bg-rose-50 text-rose-600",
+              };
+              return (
+                <div key={c.label} className="card p-4">
+                  <span className={`grid h-9 w-9 place-items-center rounded-xl ${tones[c.tone]}`}>
+                    <c.icon className="h-4 w-4" />
+                  </span>
+                  <p className="mt-2 text-xl font-bold text-slate-900">{c.value}</p>
+                  <p className="text-xs font-medium text-slate-600">{c.label}</p>
+                  <p className="mt-0.5 text-[11px] text-slate-400">{c.sub}</p>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="card p-6">
+            <h2 className="font-bold text-slate-900">최근 14일 · 가입 & 매출 추이</h2>
+            <div className="mt-2">
+              <KpiTrend data={kpis.trend} />
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

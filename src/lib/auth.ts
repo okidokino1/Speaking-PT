@@ -18,7 +18,9 @@ export async function getSessionUser(): Promise<Profile | null> {
       .select("*")
       .eq("id", user.id)
       .single();
-    const admin = isAdminEmail(user.email);
+    const role = (profile?.role as Profile["role"]) || "member";
+    const admin = isAdminEmail(user.email) || role === "admin";
+    const isStaff = admin || role === "org_admin";
     return {
       id: user.id,
       email: user.email || "",
@@ -27,6 +29,9 @@ export async function getSessionUser(): Promise<Profile | null> {
       credits: profile?.credits ?? 1,
       targetScore: profile?.target_score || undefined,
       isAdmin: admin,
+      isStaff,
+      role: admin ? "admin" : role,
+      orgId: profile?.org_id || null,
     };
   }
   // 데모 모드: 쿠키 기반
@@ -44,6 +49,9 @@ export async function getSessionUser(): Promise<Profile | null> {
       credits: parsed.credits ?? 1,
       targetScore: parsed.targetScore,
       isAdmin: admin,
+      isStaff: admin,
+      role: admin ? "admin" : "member",
+      orgId: null,
     };
   } catch {
     return null;

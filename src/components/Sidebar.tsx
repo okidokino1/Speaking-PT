@@ -26,11 +26,11 @@ const NAV = [
   { href: "/settings", label: "설정", icon: Settings },
 ];
 
-const ADMIN_NAV = { href: "/admin", label: "회원 관리", icon: Users };
+const ADMIN_NAV = { href: "/admin", label: "CRM", icon: Users };
 
 export function Sidebar({ user }: { user: Profile }) {
   const pathname = usePathname();
-  const nav = user.isAdmin ? [...NAV, ADMIN_NAV] : NAV;
+  const nav = user.isStaff ? [...NAV, ADMIN_NAV] : NAV;
   return (
     <aside className="hidden lg:flex w-64 shrink-0 flex-col bg-slate-900 text-slate-300">
       <div className="px-6 pt-6 pb-5">
