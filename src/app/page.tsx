@@ -14,14 +14,6 @@ import {
 } from "lucide-react";
 import { EXAMS, EXAM_TYPES } from "@/lib/exams";
 
-const STEPS = [
-  { n: "M1", t: "음성 수집·전처리", d: "녹음 → 노이즈 제거 → STT 전사 (Whisper)" },
-  { n: "M2", t: "발음·유창성 평가", d: "속도·멈춤·필러워드·발음 분석" },
-  { n: "M3", t: "문법·어휘·논리", d: "문법 오류·어휘 수준·구성력 평가" },
-  { n: "M4", t: "시험별 종합 채점", d: "시험 기준 가중치로 점수·등급 산출" },
-  { n: "M5", t: "맞춤 피드백", d: "첨삭·모범답변·학습 전략 (Claude)" },
-];
-
 const DIMS = [
   { icon: AudioLines, t: "발음" },
   { icon: Activity, t: "유창성" },
@@ -133,23 +125,6 @@ export default function Home() {
               </div>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* Pipeline */}
-      <section className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6">
-        <h2 className="text-center text-2xl font-bold text-slate-900">AI 채점 파이프라인</h2>
-        <p className="mt-2 text-center text-slate-500">
-          M1 → M5, 음성 입력부터 맞춤 피드백까지 자동화
-        </p>
-        <div className="mt-8 grid gap-3 md:grid-cols-5">
-          {STEPS.map((s) => (
-            <div key={s.n} className="card p-5">
-              <span className="chip bg-brand-600 text-white">{s.n}</span>
-              <h3 className="mt-3 font-bold text-slate-900">{s.t}</h3>
-              <p className="mt-1 text-sm text-slate-500">{s.d}</p>
-            </div>
-          ))}
         </div>
       </section>
 
