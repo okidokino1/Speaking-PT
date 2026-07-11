@@ -64,53 +64,83 @@ async function gradeWithClaude(args: GradeArgs): Promise<ScoreResult> {
   const system = `당신은 ${exam.fullName} 공식 채점관이자 20년 경력의 영어 스피킹 코치입니다.
 채점 기준: ${RUBRIC_FOCUS[examType]}
 각 문항을 발음, 유창성, 어휘, 문법, 논리성 5개 영역으로 0~100점 채점합니다.
-반드시 아래 JSON 스키마에 정확히 맞는 JSON만 출력하세요. 코드블록·설명 금지.
 모든 코멘트·가이드·모범답변 설명은 한국어로, 모범답변 본문(modelAnswer)만 영어로 작성합니다.
+반드시 submit_scores 도구를 호출하여 결과를 제출하세요.`;
 
-JSON 스키마:
-{
-  "perQuestion": [{
-    "index": number,
-    "dimensions": [{"key":"pronunciation|fluency|vocabulary|grammar|logic","score":0-100,"comment":"한줄평"}],
-    "overall": 0-100,
-    "errors": [{"type":"문법|어휘|발음|논리","quote":"답변 중 문제부분","issue":"문제점","correction":"고친 표현"}],
-    "correctionGuide": "만점을 받기 위한 구체적 첨삭 (2~4문장)",
-    "modelAnswer": "이 문항의 모범 답변 (영어, 해당 시험 만점 수준)",
-    "strengths": ["강점"],
-    "improvements": ["개선점"]
-  }],
-  "summary": "종합 피드백 (한국어 3~4문장)",
-  "nextSteps": ["추천 학습 전략 3개"]
-}`;
+  const user = `시험: ${exam.fullName}\n\n${answerBlocks}\n\n위 답변들을 채점하여 submit_scores 도구로 제출하세요.`;
 
-  const user = `시험: ${exam.fullName}\n\n${answerBlocks}\n\n위 답변들을 채점하여 JSON으로만 응답하세요.`;
-
+  // tool use(구조화 출력)로 항상 유효한 JSON 보장
   const resp = await client.messages.create({
     model: env.claudeModel,
-    max_tokens: 4000,
+    max_tokens: 8000,
     system,
+    tools: [{ name: "submit_scores", description: "채점 결과 제출", input_schema: SCORE_SCHEMA }],
+    tool_choice: { type: "tool", name: "submit_scores" },
     messages: [{ role: "user", content: user }],
   });
 
-  const text = resp.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("");
+  const toolUse = resp.content.find(
+    (b): b is Anthropic.ToolUseBlock => b.type === "tool_use"
+  );
+  if (!toolUse) throw new Error("Claude가 채점 결과를 반환하지 않았습니다.");
 
-  const parsed = extractJson(text);
+  const parsed = toolUse.input as {
+    perQuestion: Array<Record<string, unknown>>;
+    summary: string;
+    nextSteps: string[];
+  };
   return assembleResult(examType, questions, answers, parsed, "claude");
 }
 
-function extractJson(text: string): {
-  perQuestion: Array<Record<string, unknown>>;
-  summary: string;
-  nextSteps: string[];
-} {
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start === -1 || end === -1) throw new Error("JSON 파싱 실패");
-  return JSON.parse(text.slice(start, end + 1));
-}
+// Anthropic tool input_schema (JSON Schema) — 유효 JSON 강제
+const SCORE_SCHEMA = {
+  type: "object" as const,
+  properties: {
+    perQuestion: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          index: { type: "number" },
+          dimensions: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                key: { type: "string", enum: ["pronunciation", "fluency", "vocabulary", "grammar", "logic"] },
+                score: { type: "number" },
+                comment: { type: "string" },
+              },
+              required: ["key", "score", "comment"],
+            },
+          },
+          overall: { type: "number" },
+          errors: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                type: { type: "string" },
+                quote: { type: "string" },
+                issue: { type: "string" },
+                correction: { type: "string" },
+              },
+              required: ["type", "quote", "issue", "correction"],
+            },
+          },
+          correctionGuide: { type: "string" },
+          modelAnswer: { type: "string" },
+          strengths: { type: "array", items: { type: "string" } },
+          improvements: { type: "array", items: { type: "string" } },
+        },
+        required: ["index", "dimensions", "overall", "errors", "correctionGuide", "modelAnswer", "strengths", "improvements"],
+      },
+    },
+    summary: { type: "string" },
+    nextSteps: { type: "array", items: { type: "string" } },
+  },
+  required: ["perQuestion", "summary", "nextSteps"],
+};
 
 function assembleResult(
   examType: ExamType,
