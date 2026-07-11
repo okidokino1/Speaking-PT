@@ -48,6 +48,8 @@ export function ExamSession({
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const recognitionRef = useRef<any>(null);
+  const finalTranscriptRef = useRef(""); // 문항별 누적 최종 전사 (재시작에도 유지)
+  const wantRecogRef = useRef(false); // 음성인식을 계속 돌려야 하는지 (답변 중 true)
   const startTimeRef = useRef<number>(0);
   const finishingRef = useRef(false);
 
@@ -109,19 +111,78 @@ export function ExamSession({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secondsLeft, phase, reading]);
 
-  // 언마운트 시 음성 정리
+  // 언마운트 시 음성(TTS)·음성인식 정리
   useEffect(() => {
     return () => {
+      wantRecogRef.current = false;
       try {
         window.speechSynthesis?.cancel();
+      } catch {}
+      try {
+        const rec = recognitionRef.current;
+        if (rec) {
+          rec.onend = null;
+          rec.abort?.();
+        }
       } catch {}
     };
   }, []);
 
-  // ---- 녹음 ----
+  // ---- 실시간 음성인식 (Web Speech). 침묵/타임아웃으로 멈추면 자동 재시작 ----
+  const startRecognition = useCallback(() => {
+    const SR =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+    // 이전 인스턴스 즉시 정리 (다음 문항에서 start 실패 방지)
+    try {
+      const prev = recognitionRef.current;
+      if (prev) {
+        prev.onend = null;
+        prev.onresult = null;
+        prev.abort?.();
+      }
+    } catch {}
+
+    const rec = new SR();
+    rec.lang = "en-US";
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.onresult = (ev: any) => {
+      let interim = "";
+      for (let i = ev.resultIndex; i < ev.results.length; i++) {
+        const t = ev.results[i][0].transcript;
+        if (ev.results[i].isFinal) finalTranscriptRef.current += t + " ";
+        else interim += t;
+      }
+      setTranscript((finalTranscriptRef.current + interim).trim());
+    };
+    rec.onerror = () => {}; // no-speech/aborted 등은 onend의 재시작에 맡김
+    rec.onend = () => {
+      // 아직 답변 중이면 자동 재시작 (같은 인스턴스 재시작 실패 시 새 인스턴스)
+      if (!wantRecogRef.current) return;
+      try {
+        rec.start();
+      } catch {
+        setTimeout(() => wantRecogRef.current && startRecognition(), 200);
+      }
+    };
+    try {
+      rec.start();
+    } catch {
+      setTimeout(() => wantRecogRef.current && startRecognition(), 200);
+    }
+    recognitionRef.current = rec;
+  }, []);
+
+  // ---- 녹음 시작 (문항별) ----
   const startRecording = useCallback(async () => {
     setTranscript("");
+    finalTranscriptRef.current = "";
     chunksRef.current = [];
+    wantRecogRef.current = true;
+    startTimeRef.current = Date.now();
+    // 음성인식 먼저 시작 (마이크 권한과 독립적으로 동작)
+    startRecognition();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -131,41 +192,21 @@ export function ExamSession({
       };
       mr.start();
       mediaRecorderRef.current = mr;
-      startTimeRef.current = Date.now();
-
-      // Web Speech API 실시간 전사 (지원 브라우저에서)
-      const SR =
-        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (SR) {
-        const rec = new SR();
-        rec.lang = "en-US";
-        rec.continuous = true;
-        rec.interimResults = true;
-        let finalText = "";
-        rec.onresult = (ev: any) => {
-          let interim = "";
-          for (let i = ev.resultIndex; i < ev.results.length; i++) {
-            const t = ev.results[i][0].transcript;
-            if (ev.results[i].isFinal) finalText += t + " ";
-            else interim += t;
-          }
-          setTranscript((finalText + interim).trim());
-        };
-        rec.onerror = () => {};
-        try {
-          rec.start();
-        } catch {}
-        recognitionRef.current = rec;
-      }
     } catch {
+      // 마이크(녹음)는 실패해도 음성인식/직접입력으로 답변 가능
       setMicDenied(true);
-      setError("마이크 접근이 거부되었습니다. 브라우저 주소창의 마이크 권한을 허용해 주세요.");
     }
-  }, []);
+  }, [startRecognition]);
 
   const stopStreams = useCallback(() => {
+    wantRecogRef.current = false; // 자동 재시작 중단
     try {
-      recognitionRef.current?.stop();
+      const rec = recognitionRef.current;
+      if (rec) {
+        rec.onend = null;
+        rec.onresult = null;
+        rec.stop?.();
+      }
     } catch {}
     recognitionRef.current = null;
     streamRef.current?.getTracks().forEach((t) => t.stop());
