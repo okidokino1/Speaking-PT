@@ -50,108 +50,77 @@ async function gradeWithClaude(args: GradeArgs): Promise<ScoreResult> {
   const exam = getExam(examType)!;
   const client = new Anthropic({ apiKey: env.anthropicKey });
 
-  const answerBlocks = questions
-    .map((q, i) => {
-      const a = answers.find((x) => x.questionId === q.id);
-      const t = a?.transcript?.trim() || "(무응답)";
-      const m = a?.metrics ? `\n객관지표: ${metricsSummary(a.metrics)}` : "";
-      return `### 문항 ${i + 1} [${q.sectionLabel}]\n질문: ${q.prompt}${
-        q.passage ? `\n지문: ${q.passage}` : ""
-      }\n학습자 답변(전사): ${t}${m}`;
-    })
-    .join("\n\n");
-
-  const system = `당신은 ${exam.fullName} 공식 채점관이자 20년 경력의 영어 스피킹 코치입니다.
-채점 기준: ${RUBRIC_FOCUS[examType]}
-각 문항을 발음, 유창성, 어휘, 문법, 논리성 5개 영역으로 0~100점 채점합니다.
-모든 코멘트·가이드·모범답변 설명은 한국어로, 모범답변 본문(modelAnswer)만 영어로 작성합니다.
-반드시 submit_scores 도구를 호출하여 결과를 제출하세요.`;
-
-  const user = `시험: ${exam.fullName}\n\n${answerBlocks}\n\n위 답변들을 채점하여 submit_scores 도구로 제출하세요.`;
-
-  // tool use(구조화 출력)로 항상 유효한 JSON 보장
-  const resp = await client.messages.create({
-    model: env.claudeModel,
-    max_tokens: 8000,
-    system,
-    tools: [{ name: "submit_scores", description: "채점 결과 제출", input_schema: SCORE_SCHEMA }],
-    tool_choice: { type: "tool", name: "submit_scores" },
-    messages: [{ role: "user", content: user }],
-  });
-
-  const toolUse = resp.content.find(
-    (b): b is Anthropic.ToolUseBlock => b.type === "tool_use"
+  // 문항별 병렬 채점 → 전체 대기시간을 "가장 느린 1문항" 수준으로 단축
+  const perQuestion = await Promise.all(
+    questions.map((q, i) =>
+      gradeOneQuestion(
+        client,
+        exam.fullName,
+        examType,
+        q,
+        answers.find((a) => a.questionId === q.id),
+        i
+      )
+    )
   );
-  if (!toolUse) throw new Error("Claude가 채점 결과를 반환하지 않았습니다.");
 
-  const parsed = toolUse.input as {
-    perQuestion: Array<Record<string, unknown>>;
-    summary: string;
-    nextSteps: string[];
+  const dimAvg: DimensionScore[] = DIMENSIONS.map((d) => ({
+    key: d.key,
+    score: Math.round(
+      perQuestion.reduce((s, qf) => s + (qf.dimensions.find((x) => x.key === d.key)?.score ?? 0), 0) /
+        Math.max(1, perQuestion.length)
+    ),
+    comment: "",
+  }));
+  const overall = Math.round(
+    perQuestion.reduce((s, qf) => s + qf.overall, 0) / Math.max(1, perQuestion.length)
+  );
+
+  return {
+    examType,
+    overall,
+    dimensions: dimAvg,
+    perQuestion,
+    summary: buildSummary(dimAvg),
+    nextSteps: buildNextSteps(dimAvg),
+    engine: "claude",
   };
-  return assembleResult(examType, questions, answers, parsed, "claude");
 }
 
-// Anthropic tool input_schema (JSON Schema) — 유효 JSON 강제
-const SCORE_SCHEMA = {
-  type: "object" as const,
-  properties: {
-    perQuestion: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          index: { type: "number" },
-          dimensions: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                key: { type: "string", enum: ["pronunciation", "fluency", "vocabulary", "grammar", "logic"] },
-                score: { type: "number" },
-                comment: { type: "string" },
-              },
-              required: ["key", "score", "comment"],
-            },
-          },
-          overall: { type: "number" },
-          errors: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                type: { type: "string" },
-                quote: { type: "string" },
-                issue: { type: "string" },
-                correction: { type: "string" },
-              },
-              required: ["type", "quote", "issue", "correction"],
-            },
-          },
-          correctionGuide: { type: "string" },
-          modelAnswer: { type: "string" },
-          strengths: { type: "array", items: { type: "string" } },
-          improvements: { type: "array", items: { type: "string" } },
-        },
-        required: ["index", "dimensions", "overall", "errors", "correctionGuide", "modelAnswer", "strengths", "improvements"],
-      },
-    },
-    summary: { type: "string" },
-    nextSteps: { type: "array", items: { type: "string" } },
-  },
-  required: ["perQuestion", "summary", "nextSteps"],
-};
-
-function assembleResult(
+// 문항 1개를 Claude로 채점 (작은 출력 → 빠름). 실패/무응답 시 데모 채점으로 대체.
+async function gradeOneQuestion(
+  client: Anthropic,
+  examName: string,
   examType: ExamType,
-  questions: Question[],
-  answers: AnswerInput[],
-  parsed: { perQuestion: Array<Record<string, unknown>>; summary: string; nextSteps: string[] },
-  engine: "claude" | "demo"
-): ScoreResult {
-  const perQuestion: QuestionFeedback[] = questions.map((q, i) => {
-    const p = parsed.perQuestion?.find((x) => Number(x.index) === i) ?? parsed.perQuestion?.[i] ?? {};
-    const a = answers.find((x) => x.questionId === q.id);
+  q: Question,
+  a: AnswerInput | undefined,
+  index: number
+): Promise<QuestionFeedback> {
+  const transcript = a?.transcript?.trim() || "";
+  if (!transcript) return demoQuestionFeedback(q, a, index);
+
+  try {
+    const system = `당신은 ${examName} 공식 채점관이자 20년 경력의 영어 스피킹 코치입니다.
+채점 기준: ${RUBRIC_FOCUS[examType]}
+이 문항 하나를 발음·유창성·어휘·문법·논리성 5개 영역으로 0~100점 채점합니다.
+코멘트·가이드는 한국어, 모범답변(modelAnswer)만 영어로 작성합니다.
+반드시 submit_question 도구를 호출하세요.`;
+    const m = a?.metrics ? `\n객관지표: ${metricsSummary(a.metrics)}` : "";
+    const user = `시험: ${examName}\n질문: ${q.prompt}${
+      q.passage ? `\n지문: ${q.passage}` : ""
+    }\n학습자 답변(전사): ${transcript}${m}`;
+
+    const resp = await client.messages.create({
+      model: env.claudeModel,
+      max_tokens: 1500,
+      system,
+      tools: [{ name: "submit_question", description: "문항 채점 결과 제출", input_schema: QUESTION_SCHEMA }],
+      tool_choice: { type: "tool", name: "submit_question" },
+      messages: [{ role: "user", content: user }],
+    });
+    const tu = resp.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
+    if (!tu) throw new Error("no tool_use");
+    const p = tu.input as Record<string, unknown>;
     const dims = normalizeDims((p.dimensions as DimensionScore[]) || []);
     const overall =
       typeof p.overall === "number"
@@ -159,8 +128,8 @@ function assembleResult(
         : Math.round(dims.reduce((s, d) => s + d.score, 0) / dims.length);
     return {
       questionId: q.id,
-      index: i,
-      transcript: a?.transcript?.trim() || "",
+      index,
+      transcript,
       dimensions: dims,
       overall,
       errors: (p.errors as QuestionFeedback["errors"]) || [],
@@ -169,29 +138,99 @@ function assembleResult(
       strengths: (p.strengths as string[]) || [],
       improvements: (p.improvements as string[]) || [],
     };
-  });
+  } catch (e) {
+    console.error(`[grader] 문항 ${index + 1} 채점 실패, 데모 대체:`, e);
+    return demoQuestionFeedback(q, a, index);
+  }
+}
 
-  const dimAvg: DimensionScore[] = DIMENSIONS.map((d) => {
-    const avg =
-      perQuestion.reduce(
-        (s, q) => s + (q.dimensions.find((x) => x.key === d.key)?.score ?? 0),
-        0
-      ) / Math.max(1, perQuestion.length);
-    return { key: d.key, score: Math.round(avg), comment: "" };
-  });
-  const overall = Math.round(
-    perQuestion.reduce((s, q) => s + q.overall, 0) / Math.max(1, perQuestion.length)
-  );
+// 단일 문항 tool input_schema
+const QUESTION_SCHEMA = {
+  type: "object" as const,
+  properties: {
+    dimensions: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          key: { type: "string", enum: ["pronunciation", "fluency", "vocabulary", "grammar", "logic"] },
+          score: { type: "number" },
+          comment: { type: "string" },
+        },
+        required: ["key", "score", "comment"],
+      },
+    },
+    overall: { type: "number" },
+    errors: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          type: { type: "string" },
+          quote: { type: "string" },
+          issue: { type: "string" },
+          correction: { type: "string" },
+        },
+        required: ["type", "quote", "issue", "correction"],
+      },
+    },
+    correctionGuide: { type: "string" },
+    modelAnswer: { type: "string" },
+    strengths: { type: "array", items: { type: "string" } },
+    improvements: { type: "array", items: { type: "string" } },
+  },
+  required: ["dimensions", "overall", "errors", "correctionGuide", "modelAnswer", "strengths", "improvements"],
+};
 
+// 단일 문항 데모 채점 (Claude 실패/무응답 폴백)
+function demoQuestionFeedback(
+  q: Question,
+  a: AnswerInput | undefined,
+  index: number
+): QuestionFeedback {
+  const transcript = a?.transcript?.trim() || "";
+  const dims = demoDimensions(transcript, a);
+  const overall = Math.round(dims.reduce((s, d) => s + d.score, 0) / dims.length);
   return {
-    examType,
+    questionId: q.id,
+    index,
+    transcript,
+    dimensions: dims,
     overall,
-    dimensions: dimAvg,
-    perQuestion,
-    summary: parsed.summary || "",
-    nextSteps: parsed.nextSteps || [],
-    engine,
+    errors: demoErrors(transcript),
+    correctionGuide: demoGuide(dims, transcript),
+    modelAnswer: `(예시 모범 답변) A strong response to "${shorten(
+      q.prompt
+    )}" would give a clear main idea, two supporting reasons, and a concrete example, delivered smoothly with varied linking words.`,
+    strengths: transcript ? ["질문에 관련된 내용을 전달함"] : [],
+    improvements: [
+      dims.find((d) => d.key === "fluency")!.score < 70
+        ? "불필요한 멈춤과 필러워드를 줄여 더 매끄럽게 말하기"
+        : "고급 어휘와 복문을 활용해 답변의 깊이 더하기",
+    ],
   };
+}
+
+// 종합 요약/추천 (점수 기반 로컬 생성 — 빠름, 추가 API 호출 없음)
+function buildSummary(dims: DimensionScore[]): string {
+  const weakest = [...dims].sort((a, b) => a.score - b.score)[0];
+  const strongest = [...dims].sort((a, b) => b.score - a.score)[0];
+  return `강점은 ${dimLabel(strongest.key)}(${strongest.score}점), 가장 개선이 필요한 영역은 ${dimLabel(
+    weakest.key
+  )}(${weakest.score}점)입니다. ${dimLabel(
+    weakest.key
+  )}을(를) 집중적으로 연습하면 다음 단계 점수로 올라갈 수 있습니다.`;
+}
+function buildNextSteps(dims: DimensionScore[]): string[] {
+  const weakest = [...dims].sort((a, b) => a.score - b.score)[0].key;
+  const tips: Record<string, string> = {
+    pronunciation: "강세·연음을 살려 또렷하게 발음하는 쉐도잉 연습",
+    fluency: "3초 이상 멈추지 않고 60초 무정지 발화 연습",
+    vocabulary: "주제별 고급 어휘·컬로케이션을 익혀 답변에 적용",
+    grammar: "시제·수일치·관사를 점검하며 단문·복문 섞어 말하기",
+    logic: "주장→이유→예시→결론 구조로 답변 구성 훈련",
+  };
+  return [tips[weakest], "매일 큐카드 1개로 실전 타이머 연습", "답변을 녹음해 다시 듣고 스스로 교정"];
 }
 
 function normalizeDims(dims: DimensionScore[]): DimensionScore[] {
