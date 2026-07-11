@@ -50,6 +50,7 @@ export function ExamSession({
   const recognitionRef = useRef<any>(null);
   const finalTranscriptRef = useRef(""); // 문항별 누적 최종 전사 (재시작에도 유지)
   const wantRecogRef = useRef(false); // 음성인식을 계속 돌려야 하는지 (답변 중 true)
+  const pendingRef = useRef<Promise<void>[]>([]); // 백그라운드 Whisper 전사 대기 목록
   const startTimeRef = useRef<number>(0);
   const finishingRef = useRef(false);
 
@@ -261,37 +262,39 @@ export function ExamSession({
     if (finishingRef.current) return;
     finishingRef.current = true;
     stopSpeaking();
-    setPhase("processing");
 
     const durationSec = Math.max(1, Math.round((Date.now() - startTimeRef.current) / 1000));
     const blob = await getAudioBlob();
     stopStreams();
 
-    let finalTranscript = transcript.trim();
-    let words: CollectedAnswer["words"] | undefined;
+    // 답변을 즉시 저장 (우선 라이브 전사) → 다음 문항으로 바로 진행
+    const answer: CollectedAnswer = {
+      questionId: q.id,
+      transcript: transcript.trim(),
+      durationSec,
+      words: undefined,
+    };
+    answersRef.current.push(answer);
 
+    // Whisper 전사는 백그라운드에서 병렬 처리 (UI를 막지 않음). 완료되면 답변을 갱신.
     if (whisperAvailable && blob) {
-      try {
-        const fd = new FormData();
-        fd.append("audio", blob, "answer.webm");
-        const res = await fetch("/api/transcribe", { method: "POST", body: fd });
-        const data = await res.json();
-        if (data.transcript) {
-          finalTranscript = data.transcript;
-          words = data.words;
-        }
-      } catch {}
+      const p = (async () => {
+        try {
+          const fd = new FormData();
+          fd.append("audio", blob, "answer.webm");
+          const res = await fetch("/api/transcribe", { method: "POST", body: fd });
+          const data = await res.json();
+          if (data.transcript && data.transcript.trim()) {
+            answer.transcript = data.transcript;
+            answer.words = data.words;
+          }
+        } catch {}
+      })();
+      pendingRef.current.push(p);
     }
 
-    answersRef.current.push({
-      questionId: q.id,
-      transcript: finalTranscript,
-      durationSec,
-      words,
-    });
-
     if (qIndex + 1 < questions.length) {
-      startQuestion(qIndex + 1);
+      startQuestion(qIndex + 1); // 즉시 다음 문항
     } else {
       submitAll();
     }
@@ -300,6 +303,8 @@ export function ExamSession({
   async function submitAll() {
     setPhase("submitting");
     try {
+      // 백그라운드 Whisper 전사가 끝나길 대기 (대부분 이미 완료됨)
+      await Promise.allSettled(pendingRef.current);
       const res = await fetch("/api/score", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
